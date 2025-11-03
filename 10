@@ -1,0 +1,98 @@
+# Install required packages
+!pip install transformers torch torch-pruning psutil
+
+import torch
+import torch.nn.utils.prune as prune
+from transformers import AutoTokenizer, AutoModelForSequenceClassification
+import time
+import psutil
+import os
+
+# Load pre-trained model
+model_name = "distilbert-base-uncased"
+tokenizer = AutoTokenizer.from_pretrained(model_name)
+model = AutoModelForSequenceClassification.from_pretrained(model_name)
+
+# Test input
+text = "This is a test sentence for model optimization."
+inputs = tokenizer(text, return_tensors="pt", padding=True, truncation=True)
+
+# Helper function to measure performance
+def measure_performance(model, inputs, label="Model"):
+    process = psutil.Process(os.getpid())
+
+    # Memory before
+    mem_before = process.memory_info().rss / 1024 / 1024  # MB
+
+    # Inference time
+    model.eval()
+    with torch.no_grad():
+        start_time = time.time()
+        for _ in range(100):
+            outputs = model(**inputs)
+        end_time = time.time()
+
+    inference_time = (end_time - start_time) / 100 * 1000  # ms
+    mem_after = process.memory_info().rss / 1024 / 1024  # MB
+    model_size = sum(p.numel() * p.element_size() for p in model.parameters()) / 1024 / 1024  # MB
+
+    print(f"\n--- {label} ---")
+    print(f"Model Size: {model_size:.2f} MB")
+    print(f"Memory Usage: {mem_after:.2f} MB")
+    print(f"Inference Time: {inference_time:.4f} ms")
+
+    return model_size, mem_after, inference_time
+
+# Original model performance
+measure_performance(model, inputs, "Original Model")
+
+# ===== PRUNING =====
+pruned_model = AutoModelForSequenceClassification.from_pretrained(model_name)
+
+# Apply magnitude pruning to linear layers
+for name, module in pruned_model.named_modules():
+    if isinstance(module, torch.nn.Linear):
+        prune.l1_unstructured(module, name='weight', amount=0.3)  # 30% pruning
+        prune.remove(module, 'weight')  # Make pruning permanent
+
+measure_performance(pruned_model, inputs, "Pruned Model (30%)")
+
+# ===== QUANTIZATION =====
+quantized_model = AutoModelForSequenceClassification.from_pretrained(model_name)
+
+# Dynamic quantization
+quantized_model = torch.quantization.quantize_dynamic(
+    quantized_model,
+    {torch.nn.Linear},
+    dtype=torch.qint8
+)
+
+measure_performance(quantized_model, inputs, "Quantized Model (INT8)")
+
+# ===== COMBINED: PRUNING + QUANTIZATION =====
+combined_model = AutoModelForSequenceClassification.from_pretrained(model_name)
+
+# Prune
+for name, module in combined_model.named_modules():
+    if isinstance(module, torch.nn.Linear):
+        prune.l1_unstructured(module, name='weight', amount=0.3)
+        prune.remove(module, 'weight')
+
+# Quantize
+combined_model = torch.quantization.quantize_dynamic(
+    combined_model,
+    {torch.nn.Linear},
+    dtype=torch.qint8
+)
+
+measure_performance(combined_model, inputs, "Pruned + Quantized Model")
+
+# Verify outputs are similar
+with torch.no_grad():
+    original_output = model(**inputs).logits
+    optimized_output = combined_model(**inputs).logits
+
+print(f"\n--- Output Comparison ---")
+print(f"Original Output: {original_output[0][:3]}")
+print(f"Optimized Output: {optimized_output[0][:3]}")
+print(f"Max Difference: {torch.max(torch.abs(original_output - optimized_output)).item():.6f}")
