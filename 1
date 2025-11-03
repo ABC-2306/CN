@@ -11,3 +11,7 @@ def multiply_tensors(x, y):
 
 result = multiply_tensors(a, b)
 print("Graph Mode Output:", result.numpy())
+
+print(f"Shape of tensor a: {a.shape}")
+print(f"Data type of tensor a: {a.dtype}")
+print(f"Rank of tensor a: {tf.rank(a).numpy()}")
