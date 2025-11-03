@@ -1,0 +1,27 @@
+!pip install torch torchvision matplotlib --quiet
+
+import torch
+from torchvision import datasets, transforms
+import matplotlib.pyplot as plt
+
+# Load one MNIST image
+mnist = datasets.MNIST(root='data', train=True, download=True, transform=transforms.ToTensor())
+img = mnist.data[0].float() / 255.0  # normalize
+img = img.unsqueeze(0).unsqueeze(0)  # (1,1,28,28)
+
+# Add gradual noise (simulate diffusion)
+noisy_imgs = []
+for t in torch.linspace(0, 1, 5):
+    noise = torch.randn_like(img)
+    x_t = torch.sqrt(1 - t) * img + torch.sqrt(t) * noise
+    noisy_imgs.append(x_t[0,0])
+
+# Show images
+plt.figure(figsize=(10,2))
+for i in range(5):
+    plt.subplot(1,5,i+1)
+    plt.imshow(noisy_imgs[i], cmap='gray')
+    plt.axis('off')
+    plt.title(f"t={i/4:.1f}")
+plt.suptitle("MNIST Diffusion Process")
+plt.show()
