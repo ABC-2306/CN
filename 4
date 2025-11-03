@@ -1,0 +1,35 @@
+# Install required libraries
+!pip install gensim faiss-cpu
+
+from gensim.models import Word2Vec
+import faiss
+import numpy as np
+
+#  Create a small text corpus
+sentences = [
+    ["I", "Love", "India"],
+    ["AI", "Is", "The", "Future"],
+    ["ML", "Is", "A", "Part", "Of", "AI"],
+]
+
+model = Word2Vec(sentences, vector_size=10, window=2, min_count=1, sg=1)
+#Extract embeddings
+words = list(model.wv.index_to_key)
+vectors = np.array([model.wv[w] for w in words]).astype("float32")
+
+# Build FAISS index (lightweight vector database)
+index = faiss.IndexFlatL2(vectors.shape[1])  # L2 distance
+index.add(vectors)
+
+#  Query for similar words using FAISS
+query_vector = np.array([model.wv["AI"]]).astype("float32")
+distances, indices = index.search(query_vector, k=3)
+
+#  Display results
+print("Query Word: AI")
+for i, idx in enumerate(indices[0]):
+    print(f"{i+1}. {words[idx]} (distance = {distances[0][i]:.4f})")
+
+#  Semantic relationship using Word2Vec directly
+print("\nSemantic relationships (from Word2Vec):")
+print(model.wv.most_similar("AI"))
