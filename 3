@@ -1,0 +1,30 @@
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+np.random.seed(42)
+data=pd.DataFrame({
+'Feature1': np.random.normal(50,10,100),
+'Feature2': np.random.normal(200,20,100),
+'Feature3': np.random.normal(500,50,100)
+})
+
+plt.figure(figsize=(6,4))
+plt.hist(data['Feature1'],bins=20,color='skyblue')
+plt.title("Histogram of Feature1")
+plt.xlabel("Value")
+plt.ylabel("Frequency")
+plt.show()
+
+plt.figure(figsize=(6,4))
+plt.scatter(data['Feature1'], data['Feature2'], color='green')
+plt.title("Feature1 vs Feature2")
+plt.xlabel("Feature1")
+plt.ylabel("Feature2")
+plt.show()
+
+plt.figure(figsize=(5,4))
+sns.heatmap(data.corr(), annot=True, cmap='coolwarm')
+plt.title("Correlation Heatmap")
+plt.show()
